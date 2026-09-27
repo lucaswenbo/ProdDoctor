@@ -8,7 +8,7 @@
 [![Smoke test GitHub Action](https://github.com/lucaswenbo/ProdDoctor/actions/workflows/action-smoke.yml/badge.svg)](https://github.com/lucaswenbo/ProdDoctor/actions/workflows/action-smoke.yml)
 [![Browser smoke test](https://github.com/lucaswenbo/ProdDoctor/actions/workflows/browser-smoke.yml/badge.svg)](https://github.com/lucaswenbo/ProdDoctor/actions/workflows/browser-smoke.yml)
 ![Version](https://img.shields.io/badge/version-v2.1.2-2563eb)
-![License](https://img.shields.io/badge/license-MIT-16a34a)
+[![License](https://img.shields.io/badge/license-Apache--2.0-16a34a)](LICENSE)
 
 <p align="center">
   <img src=".github/assets/proddoctor-hero.svg" alt="ProdDoctor - post-deploy production validation" width="100%">
@@ -1032,4 +1032,4 @@ ProdDoctor：
 
 # License
 
-MIT License
+本项目采用 [Apache License 2.0](LICENSE) 许可。版权归属信息见 [NOTICE](NOTICE)。
