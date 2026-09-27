@@ -37,6 +37,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          npm run release:integrity
           npm run check
           VERSION="$(node -p "require('./package.json').version")"
           LATEST="$(git tag --merged HEAD --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)"
@@ -81,16 +82,22 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+      - name: Verify fixed tags after Release Please
+        run: npm run release:integrity
+
       # Idempotent: repair vN on retry too; NEVER move concrete vN.N.N tags.
       - name: Reconcile floating major tag from latest published release
         shell: bash
         run: |
           set -euo pipefail
-          RELEASE_TAG="$(gh api "repos/$GH_REPO/releases/latest" --jq .tag_name)"
+          RELEASE_JSON="$(gh api "repos/$GH_REPO/releases/latest")"
+          RELEASE_TAG="$(jq -er '.tag_name' <<< "$RELEASE_JSON")"
+          RELEASE_TARGET="$(jq -er '.target_commitish | select(type == "string" and test("^[0-9a-f]{40}$"))' <<< "$RELEASE_JSON")"
           [[ "$RELEASE_TAG" =~ ^v([0-9]+)\.[0-9]+\.[0-9]+$ ]]
           FLOATING_TAG="v${BASH_REMATCH[1]}"
           git fetch origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
           RELEASE_SHA="$(git rev-parse "$RELEASE_TAG^{commit}")"
+          test "$RELEASE_SHA" = "$RELEASE_TARGET"
           git merge-base --is-ancestor "$RELEASE_SHA" HEAD
           CURRENT="$(git ls-remote origin "refs/tags/$FLOATING_TAG" | cut -f1)"
           git push --force-with-lease="refs/tags/$FLOATING_TAG:$CURRENT" origin "$RELEASE_SHA:refs/tags/$FLOATING_TAG"
