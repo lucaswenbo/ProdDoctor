@@ -8,7 +8,7 @@
 [![Smoke test GitHub Action](https://github.com/lucaswenbo/ProdDoctor/actions/workflows/action-smoke.yml/badge.svg)](https://github.com/lucaswenbo/ProdDoctor/actions/workflows/action-smoke.yml)
 [![Browser smoke test](https://github.com/lucaswenbo/ProdDoctor/actions/workflows/browser-smoke.yml/badge.svg)](https://github.com/lucaswenbo/ProdDoctor/actions/workflows/browser-smoke.yml)
 ![Version](https://img.shields.io/badge/version-v2.1.2-2563eb)
-![License](https://img.shields.io/badge/license-MIT-16a34a)
+[![License](https://img.shields.io/badge/license-Apache--2.0-16a34a)](LICENSE)
 
 <p align="center">
   <img src=".github/assets/proddoctor-hero.svg" alt="ProdDoctor - post-deploy production validation" width="100%">
@@ -946,4 +946,4 @@ Asset extraction is intentionally lightweight rather than a full browser HTML pa
 
 # License
 
-MIT License
+Licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for copyright attribution.
