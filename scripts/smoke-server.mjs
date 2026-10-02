@@ -18,5 +18,5 @@ http.createServer((req, res) => {
     return res.end('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>');
   }
   res.setHeader('Content-Type', 'text/html');
-  res.end('<!doctype html><meta name="viewport" content="width=device-width"><title>ProdDoctor smoke</title><body><h1>ProdDoctor smoke</h1><script src="/app.js"></script></body>');
+  res.end('<!doctype html><meta name="viewport" content="width=device-width"><title>ProdDoctor smoke</title><body><h1>ProdDoctor smoke</h1><script>const snippet = \'<script src="/missing.js">\';</script><script src="/app.js"></script></body>');
 }).listen(18765, '127.0.0.1');

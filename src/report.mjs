@@ -48,6 +48,7 @@ export function localizeDiagnostic(text, language = 'en') {
     [/^HTTP 状态不符合预期：实际 (\d+)，预期 (\d+)$/, 'HTTP status mismatch: got $1, expected $2'],
     [/^页面未包含指定关键字$/, 'Page did not contain the expected text'],
     [/^响应正文不是有效 JSON$/, 'Response body is not valid JSON'],
+    [/^JSON 断言选中的值包含非有限数字或不安全整数；大整数请使用 JSON 字符串$/, 'A selected JSON value contains a non-finite number or unsafe integer; encode large integers as JSON strings'],
     [/^未收到可验证的 JSON 响应$/, 'No response was received for JSON validation'],
     [/^JSON 断言失败：(.*)$/, 'JSON assertion failed: $1'],
     [/^请求失败：(.*)$/, 'Request failed: $1'],

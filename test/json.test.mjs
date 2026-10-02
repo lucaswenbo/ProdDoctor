@@ -15,6 +15,9 @@ test('critical API JSON assertions, retries, reports and CLI exit codes', async 
     requests++;
     res.setHeader('Content-Type', 'application/json');
     if (req.url === '/invalid') return res.end('<h1>SPA fallback</h1>');
+    if (req.url === '/unsafe') return res.end('{"id":9007199254740993,"healthy":true}');
+    if (req.url === '/overflow') return res.end('{"value":1e400}');
+    if (req.url === '/large-string') return res.end('{"id":"9007199254740993"}');
     if (req.url === '/error') res.statusCode = 500;
     if (req.url === '/retry') return res.end(JSON.stringify({ healthy: ++retryRequests > 1 }));
     res.end(JSON.stringify({ healthy: true, ready: false, count: 0, empty: null,
@@ -46,6 +49,14 @@ test('critical API JSON assertions, retries, reports and CLI exit codes', async 
   assert.equal((await check('/error', { '/healthy': true })).ok, false);
   assert.equal((await check('/api', null)).json.checked, false);
   assert.equal((await check('/api', { '': { healthy: true } })).ok, false);
+  for (const [route, expectedJson] of [['/unsafe', { '/id': 0 }], ['/unsafe', { '': {} }], ['/overflow', { '/value': 0 }]]) {
+    const result = await check(route, expectedJson);
+    assert.equal(result.ok, false);
+    assert.match(toEnglishReport(result), /non-finite number or unsafe integer/);
+    assert.equal(result.json.assertions.length, 0); // Do not serialize Infinity as a misleading null.
+  }
+  assert.equal((await check('/unsafe', { '/healthy': true })).ok, true);
+  assert.equal((await check('/large-string', { '/id': '9007199254740993' })).ok, true);
 
   const invalid = await check('/invalid', { '/healthy': true });
   assert.equal(invalid.ok, false);
@@ -71,7 +82,8 @@ test('critical API JSON assertions, retries, reports and CLI exit codes', async 
   const unsafePointer = await check('/api', { '/<script>': true });
   assert.doesNotMatch(toMarkdownSummary(unsafePointer), /<script>/);
 
-  for (const expectedJson of [{}, [], true, 'bad', { healthy: true }, { '/bad~2': true }]) {
+  for (const expectedJson of [{}, [], true, 'bad', { healthy: true }, { '/bad~2': true },
+    { '/id': 9007199254740992 }, { '/nested': [{ value: Infinity }] }]) {
     const before = requests;
     await assert.rejects(check('/api', expectedJson), /expect_json/);
     assert.equal(requests, before);
@@ -97,6 +109,7 @@ test('critical API JSON assertions, retries, reports and CLI exit codes', async 
   for (const flags of [
     ['--expect-json', '{}'], ['--expect-json', 'null'], ['--expect-json', 'broken'],
     ['--expect-json', '{"bad":true}'], ['--expect-json'],
+    ['--expect-json', '{"/id":9007199254740993}'], ['--expect-json', '{"/value":1e400}'],
     ['--expect-json', '{"/healthy":true}', '--expect-json', '{"/healthy":true}']
   ]) {
     const before = requests;
