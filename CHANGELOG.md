@@ -2,6 +2,13 @@
 
 所有值得记录的变更都集中在这里。格式遵循 Keep a Changelog 的组织方式，版本号遵循 SemVer。
 
+## [2.2.1](https://github.com/lucaswenbo/ProdDoctor/compare/v2.2.0...v2.2.1) (2026-10-02)
+
+
+### Bug Fixes
+
+* prevent false passes and inert asset failures ([047fcbb](https://github.com/lucaswenbo/ProdDoctor/commit/047fcbbc1a95f44e72746f042fc35c111f01b86e))
+
 ## [2.2.0](https://github.com/lucaswenbo/ProdDoctor/compare/v2.1.2...v2.2.0) (2026-10-02)
 
 
