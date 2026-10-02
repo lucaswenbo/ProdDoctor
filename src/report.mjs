@@ -47,6 +47,9 @@ export function localizeDiagnostic(text, language = 'en') {
     [/^HTTP 状态异常：(\d+)$/, 'Unexpected HTTP status: $1'],
     [/^HTTP 状态不符合预期：实际 (\d+)，预期 (\d+)$/, 'HTTP status mismatch: got $1, expected $2'],
     [/^页面未包含指定关键字$/, 'Page did not contain the expected text'],
+    [/^响应正文不是有效 JSON$/, 'Response body is not valid JSON'],
+    [/^未收到可验证的 JSON 响应$/, 'No response was received for JSON validation'],
+    [/^JSON 断言失败：(.*)$/, 'JSON assertion failed: $1'],
     [/^请求失败：(.*)$/, 'Request failed: $1'],
     [/^生产页面检查失败$/, 'Production page check failed'],
     [/^TLS 证书校验失败：(.*)$/, 'TLS certificate validation failed: $1'],
@@ -84,6 +87,10 @@ export function localizeResult(result, language = 'en') {
       ...result.assets,
       reason: result.assets?.reason ? localizeDiagnostic(result.assets.reason, lang) : result.assets?.reason
     },
+    ...(result.json ? { json: {
+      ...result.json,
+      error: result.json.error ? localizeDiagnostic(result.json.error, lang) : null
+    } } : {}),
     browser: {
       ...result.browser,
       reason: result.browser?.reason ? localizeDiagnostic(result.browser.reason, lang) : result.browser?.reason,
@@ -140,6 +147,12 @@ export function likelyCause(result, language = 'en') {
       : 'The production page responded, but its content did not match the expected page or version.';
   }
 
+  if (result.json?.checked && !result.json.ok) {
+    return zh
+      ? '生产端点已响应，但 JSON 无效、指定字段缺失或字段值不符合预期。'
+      : 'The production endpoint responded, but its JSON is invalid, a required field is missing, or a value does not match.';
+  }
+
   if (result.assets?.checked && !result.assets.ok) {
     return zh
       ? '生产页面已返回，但至少一个关键同源 JS/CSS 资源不可用或内容异常。'
@@ -179,6 +192,16 @@ function browserIssueLine(item, language) {
   return `${item.resourceType || 'resource'} ${item.errorText || failed} ${item.url}`;
 }
 
+export function jsonAssertionDetail(item, language = 'en') {
+  const zh = normalizeLanguage(language) === 'zh-CN';
+  const value = data => JSON.stringify(data).slice(0, 300);
+  return `${JSON.stringify(item.pointer)} · ${zh ? '预期' : 'expected'} ${value(item.expected)} · ${zh ? '实际' : 'got'} ${item.found ? value(item.actual) : (zh ? '字段缺失' : 'missing field')}`;
+}
+
+function markdownCode(text) {
+  return `<code>${text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</code>`;
+}
+
 function toTextReport(result, language) {
   const lang = normalizeLanguage(language);
   const zh = lang === 'zh-CN';
@@ -210,6 +233,12 @@ function toTextReport(result, language) {
 
   if (result.page.expected) {
     lines.push(`${icon(result.page.expectedOk)} ${zh ? '页面内容' : 'Page content'}${colon}${result.page.expectedOk ? (zh ? '已找到' : 'found') : (zh ? '未找到' : 'not found')} ${quote(result.page.expected)}`);
+  }
+
+  if (result.json?.checked) {
+    lines.push(`${icon(result.json.ok)} ${zh ? 'JSON 断言' : 'JSON assertions'}${colon}${result.json.assertions.length}`);
+    if (result.json.error) lines.push(`   ${localizeDiagnostic(result.json.error, lang)}`);
+    for (const item of result.json.assertions) lines.push(`   ${icon(item.ok)} ${jsonAssertionDetail(item, lang)}`);
   }
 
   if (result.page.blockedByChallenge) {
@@ -319,6 +348,7 @@ export function toMarkdownSummary(result, options = {}) {
     ['DNS', result.dns.ok ? '✅' : '❌', result.dns.ok ? result.dns.addresses.map(x => x.address).join(', ') : result.dns.error || (zh ? '失败' : 'failed')],
     [zh ? '生产页面' : 'Production page', result.page.ok ? '✅' : '❌', `HTTP ${result.page.status ?? noResponse} · ${result.page.elapsedMs}ms`],
     [zh ? '页面内容' : 'Page content', result.page.expected ? (result.page.expectedOk ? '✅' : '❌') : '➖', result.page.expected || (zh ? '未配置' : 'not configured')],
+    ...(result.json?.checked ? [[zh ? 'JSON 断言' : 'JSON assertions', icon(result.json.ok), result.json.error ? localizeDiagnostic(result.json.error, lang) : String(result.json.assertions.length)]] : []),
     [zh ? 'Cloudflare 阻断' : 'Cloudflare block', result.page.blockedByChallenge ? '❌' : '✅', result.page.blockedByChallenge ? result.page.challengeMatches.join(', ') : (zh ? '未发现' : 'not detected')],
     ['TLS', result.tls.checked ? (result.tls.ok ? '✅' : '❌') : '➖', tlsDetail],
     [zh ? '同源 JS/CSS' : 'Same-origin JS/CSS', result.assets.checked ? (result.assets.ok ? '✅' : '❌') : '➖', assetDetail],
@@ -363,10 +393,15 @@ export function toMarkdownSummary(result, options = {}) {
     ...rows.map(([name, status, detail]) => `| ${name} | ${status} | ${String(detail).replace(/\|/g, '\\\|')} |`),
     '',
     ...failedAssets,
+    ...(result.json?.checked && result.json.assertions.length ? [
+      zh ? '### JSON 断言' : '### JSON assertions',
+      ...result.json.assertions.map(item => `- ${icon(item.ok)} ${markdownCode(jsonAssertionDetail(item, lang))}`),
+      ''
+    ] : []),
     ...browserDetails,
     ...(result.browser.screenshotPath ? [`${zh ? '浏览器截图：' : 'Browser screenshot: '}\`${result.browser.screenshotPath}\``, ''] : []),
     ...(result.browser.tracePath ? [`${zh ? 'Playwright Trace：' : 'Playwright Trace: '}\`${result.browser.tracePath}\``, ''] : []),
-    ...(result.failures.length ? [zh ? '### 阻断问题' : '### Blocking issues', ...result.failures.map(x => `- ${localizeDiagnostic(x, lang)}`), ''] : []),
+    ...(result.failures.length ? [zh ? '### 阻断问题' : '### Blocking issues', ...result.failures.map(x => `- ${x.startsWith('JSON 断言失败：') ? markdownCode(localizeDiagnostic(x, lang)) : localizeDiagnostic(x, lang)}`), ''] : []),
     ...(result.warnings.length ? [zh ? '### 提示' : '### Warnings', ...result.warnings.map(x => `- ${localizeDiagnostic(x, lang)}`), ''] : [])
   ].join('\n');
 }

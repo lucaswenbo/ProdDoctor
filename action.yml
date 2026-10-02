@@ -21,6 +21,10 @@ inputs:
     description: 'Exact final HTTP status to require; leave empty to accept any successful status'
     required: false
     default: ''
+  expect_json:
+    description: 'JSON object mapping JSON Pointers to exact expected values; empty disables JSON assertions'
+    required: false
+    default: ''
   retries:
     description: 'Number of retries after the initial failed attempt'
     required: false
@@ -183,6 +187,7 @@ runs:
         PROD_DOCTOR_URL: ${{ inputs.url }}
         PROD_DOCTOR_LANGUAGE: ${{ inputs.language }}
         PROD_DOCTOR_EXPECT: ${{ inputs.expect }}
+        PROD_DOCTOR_EXPECT_JSON: ${{ inputs.expect_json }}
         PROD_DOCTOR_STATUS: ${{ inputs.status }}
         PROD_DOCTOR_RETRIES: ${{ inputs.retries }}
         PROD_DOCTOR_TIMEOUT: ${{ inputs.timeout }}
@@ -217,6 +222,10 @@ runs:
 
         if [ -n "$PROD_DOCTOR_STATUS" ]; then
           args+=(--status "$PROD_DOCTOR_STATUS")
+        fi
+
+        if [ -n "$PROD_DOCTOR_EXPECT_JSON" ]; then
+          args+=(--expect-json "$PROD_DOCTOR_EXPECT_JSON")
         fi
 
         if [ "$PROD_DOCTOR_CHECK_ASSETS" = "false" ]; then

@@ -57,3 +57,44 @@ jobs:
         with:
           url: https://example.com
           check_assets: false
+
+      - name: Start local API fixture
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE' &
+          import http from 'node:http';
+          http.createServer((req, res) => {
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ healthy: req.url === '/healthy', dependencies: { database: 'ready' } }));
+          }).listen(18765, '127.0.0.1');
+          NODE
+          for attempt in {1..20}; do
+            if curl --silent --fail http://127.0.0.1:18765/healthy >/dev/null; then exit 0; fi
+            sleep 0.1
+          done
+          exit 1
+
+      - name: Critical API JSON assertions pass
+        uses: ./
+        with:
+          url: http://127.0.0.1:18765/healthy
+          status: 200
+          expect_json: '{"/healthy":true,"/dependencies/database":"ready"}'
+          retries: 0
+          max_body_bytes: 1024
+
+      - name: HTTP 200 with unhealthy JSON must fail
+        id: unhealthy
+        continue-on-error: true
+        uses: ./
+        with:
+          url: http://127.0.0.1:18765/unhealthy
+          language: zh-CN
+          status: 200
+          expect_json: '{"/healthy":true}'
+          retries: 0
+
+      - name: Verify the unhealthy response was blocked
+        env:
+          OUTCOME: ${{ steps.unhealthy.outcome }}
+        run: test "$OUTCOME" = failure

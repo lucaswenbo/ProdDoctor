@@ -69,6 +69,7 @@ The goal is not only to say **red or green**. It is to leave enough evidence to 
 - DNS resolution
 - Real production URL and final HTTP status
 - Expected page text, catching “HTTP 200 but wrong page” failures
+- Opt-in JSON field assertions for explicitly selected critical API endpoints
 - Final URL after redirects
 - Common Cloudflare Challenge / WAF blocking patterns
 - TLS certificate chain and remaining lifetime
@@ -233,6 +234,76 @@ jobs:
 The workflow remains successful only if the real production address passes validation.
 
 ---
+
+# Critical pages and APIs: catch a healthy homepage with a broken backend
+
+A homepage can return 200 while `/api/health` returns 500, or its JSON says the database is unavailable. Check critical endpoints explicitly. `expect_json` maps **JSON Pointers** to exact expected JSON values:
+
+```yaml
+- uses: lucaswenbo/ProdDoctor@<commit-sha>
+  with:
+    url: https://example.com/api/health
+    status: 200
+    expect_json: '{"/healthy":true,"/dependencies/database":"ready"}'
+    retries: 2
+    max_body_bytes: 5242880
+```
+
+Replace `<commit-sha>` with the full SHA of a release containing `expect_json`. The older v2.1.2 release does not support this input.
+
+- `/healthy` selects a top-level field; `/dependencies/database` selects a nested field; `/items/0/id` selects an array element. Escape `/` in a field name as `~1`, and `~` as `~0`. The empty pointer `""` compares the entire response.
+- Types matter: `true` differs from `"true"`, and `1` differs from `"1"`. Objects and arrays match exactly at the selected pointer; unrelated fields elsewhere are allowed.
+- Invalid JSON, missing fields, or mismatched values fail the check. HTTP and Cloudflare checks remain blocking. JSON failures use the existing timeout and retries, including HTTP 200 with the wrong value.
+- Empty input disables assertions. Invalid configuration exits with code 2 before requests; a failed response or assertion exits with code 1.
+- Reports show the target and each pointer's expected/actual values or a missing-field message. JSON reports preserve selected values; human-readable details show at most 300 characters per value.
+
+Local CLI equivalent (POSIX shells and PowerShell):
+
+```sh
+node ./bin/proddoctor.mjs https://example.com/api/health --status 200 --expect-json '{"/healthy":true}' --json-file ./api-report.json --html-report ./api-report.html
+```
+
+Use an Actions matrix for homepage, critical page, and API coverage. `fail-fast: false` lets all targets finish:
+
+```yaml
+name: Verify critical production endpoints
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    name: Verify ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: homepage
+            url: https://example.com
+            expect: My Website
+            expect_json: ''
+          - name: documentation
+            url: https://example.com/docs
+            expect: Documentation
+            expect_json: ''
+          - name: health-api
+            url: https://example.com/api/health
+            expect: ''
+            expect_json: '{"/healthy":true}'
+    steps:
+      - uses: lucaswenbo/ProdDoctor@<commit-sha>
+        with:
+          url: ${{ matrix.url }}
+          expect: ${{ matrix.expect }}
+          expect_json: ${{ matrix.expect_json }}
+          status: 200
+          max_body_bytes: 5242880
+```
+
+Replace sample URLs and assertions with your real endpoints. Run after deployment, or use [examples/production-check.yml](examples/production-check.yml) for deployment-status events. Each endpoint gets its own Job Summary. The CLI generates HTML/JSON files without Chromium; the Action's automatic artifact upload still requires browser mode.
+
+These are public GET checks, not authenticated interactions or transactions. Only explicitly selected fields are asserted; arbitrary background API failures observed by Chromium do not automatically block. Choose stable, read-only endpoints representing essential functionality.
 
 # Browser mode: catch pages that return 200 but are actually broken
 
@@ -481,6 +552,7 @@ ProdDoctor follows SemVer and tries to keep existing workflows behaving as origi
 | `url` | Yes | None | Production URL to validate |
 | `language` | No | `en` | Human-readable output language: `en` or `zh-CN` |
 | `expect` | No | Empty | Raw HTML must contain this text |
+| `expect_json` | No | Empty | JSON Pointer/value object; selected response fields must match exactly |
 | `status` | No | Empty | Final HTTP status must exactly match |
 | `retries` | No | Action: `2`; CLI: `1` | Additional retries after failure |
 | `timeout` | No | `15000` | HTTP request timeout in milliseconds |
@@ -659,6 +731,7 @@ The current version fails when:
 9. Critical same-origin document/script/stylesheet requests fail or return 4xx/5xx
 10. `browser_expect` is missing from rendered visible text
 11. `browser_fail_console` is enabled and a console error occurs
+12. `expect_json` is configured and JSON is invalid, a selected field is missing, or its value differs
 
 These are currently warnings rather than standalone blocking failures:
 
@@ -833,7 +906,7 @@ ProdDoctor does not yet include:
 - Lighthouse / Core Web Vitals
 - Logged-in page support
 - Custom request headers
-- Multi-URL batch configuration
+- A built-in multi-URL configuration file (use the Actions matrix above)
 
 These can be added in future releases.
 
@@ -900,7 +973,8 @@ The repository includes smoke tests for:
 - [ ] Login flows and programmable browser steps
 - [ ] Custom viewport / multi-device matrix
 - [ ] Playwright Video
-- [ ] Multi-URL batch checks
+- [x] Critical page and API JSON assertions with an Actions matrix
+- [ ] A built-in multi-URL configuration file
 - [ ] Lighthouse / Core Web Vitals
 - [ ] PR comment reports
 - [ ] npm publishing
@@ -919,6 +993,7 @@ ProdDoctor:
 - Makes public HTTP requests from the environment where it runs
 
 Do not place passwords, access tokens, private signatures, or sensitive query parameters in public GitHub workflows.
+JSON assertion reports contain selected expected and actual values. Avoid selecting secrets or personal data, and treat these reports as potentially sensitive alongside screenshots and traces.
 
 Screenshots, traces, reports, and logs may also contain page content, query parameters, or network responses. Treat them as potentially sensitive data.
 

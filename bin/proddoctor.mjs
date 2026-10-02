@@ -23,6 +23,7 @@ function usage(language = 'en') {
 
 基础检查：
   --expect <文本>              要求原始 HTML 包含指定文本
+  --expect-json <JSON>         JSON Pointer 到预期值的映射，例如 '{"/healthy":true}'
   --status <状态码>            要求最终 HTTP 状态精确匹配，例如 200
   --timeout <毫秒>             单次 HTTP 请求超时，默认 15000
   --max-body-bytes <字节>      响应正文大小上限，默认 0（保持兼容，不限大小）
@@ -67,6 +68,7 @@ Usage:
 
 Core checks:
   --expect <text>               Require raw HTML to contain text
+  --expect-json <JSON>          JSON Pointer/value map, e.g. '{"/healthy":true}'
   --status <code>               Require an exact final HTTP status, e.g. 200
   --timeout <ms>                Per-request timeout, default 15000
   --max-body-bytes <bytes>      Response-body limit, default 0 (unlimited for compatibility)
@@ -139,7 +141,7 @@ async function writeTextFile(filePath, content) {
 
 try {
   const valueFlags = new Set([
-    '--expect', '--status', '--timeout', '--max-body-bytes', '--retries', '--max-assets', '--tls-warn-days',
+    '--expect', '--expect-json', '--status', '--timeout', '--max-body-bytes', '--retries', '--max-assets', '--tls-warn-days',
     '--browser-expect', '--browser-timeout', '--browser-settle', '--browser-profile',
     '--browser-screenshot', '--browser-trace', '--browser-trace-path', '--json-file', '--html-report', '--lang'
   ]);
@@ -182,6 +184,11 @@ try {
   const rawStatus = value('--status', null);
   const expectedStatus = rawStatus === null ? null : Number(rawStatus);
   const expected = value('--expect', '', { allowEmpty: true });
+  const rawExpectedJson = value('--expect-json', null);
+  const expectedJson = rawExpectedJson === null ? null : JSON.parse(rawExpectedJson);
+  if (rawExpectedJson !== null && expectedJson === null) {
+    throw new Error(zh ? '--expect-json 必须是非空 JSON 对象' : '--expect-json must be a non-empty JSON object');
+  }
   const checkAssets = !args.includes('--no-assets');
 
   const browserEnabled = args.includes('--browser');
@@ -238,6 +245,7 @@ try {
   const result = await runChecks(parsedUrl.href, {
     expected,
     expectedStatus,
+    expectedJson,
     timeoutMs,
     maxBodyBytes,
     retries,

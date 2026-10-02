@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { likelyCause, localizeDiagnostic, normalizeLanguage } from './report.mjs';
+import { jsonAssertionDetail, likelyCause, localizeDiagnostic, normalizeLanguage } from './report.mjs';
 
 function esc(value) {
   return String(value ?? '')
@@ -53,6 +53,7 @@ export function toHtmlReport(result, options = {}) {
       ? result.dns.addresses.map((item) => item.address).join(', ')
       : result.dns.error || (zh ? '失败' : 'failed')),
     row(zh ? '生产页面' : 'Production page', result.page.ok, `HTTP ${result.page.status ?? noResponse} · ${result.page.elapsedMs}ms`),
+    ...(result.json?.checked ? [row(zh ? 'JSON 断言' : 'JSON assertions', result.json.ok, result.json.error ? localizeDiagnostic(result.json.error, language) : String(result.json.assertions.length))] : []),
     row('Cloudflare/WAF', !result.page.blockedByChallenge, result.page.blockedByChallenge ? (zh ? '检测到疑似挑战页' : 'Likely challenge/WAF block detected') : (zh ? '未发现典型阻断' : 'No typical block detected')),
     row('TLS', !result.tls.checked || result.tls.ok, result.tls.checked
       ? `${result.tls.authorized ? (zh ? '证书链正常' : 'Certificate chain valid') : result.tls.authorizationError || (zh ? '异常' : 'invalid')} · ${result.tls.daysRemaining ?? '?'} ${zh ? '天' : 'day(s)'}`
@@ -164,6 +165,12 @@ export function toHtmlReport(result, options = {}) {
     </section>
 
     ${browserEvidence}
+
+    ${result.json?.checked && result.json.assertions.length ? `<section>
+      <h2>${zh ? 'JSON 断言' : 'JSON assertions'}</h2>
+      <table><thead><tr><th>${zh ? '字段' : 'Field'}</th><th>${zh ? '状态' : 'Status'}</th><th>${zh ? '详情' : 'Details'}</th></tr></thead>
+      <tbody>${result.json.assertions.map(item => row(item.pointer, item.ok, jsonAssertionDetail(item, language))).join('')}</tbody></table>
+    </section>` : ''}
 
     <section>
       <h2>${zh ? '阻断问题' : 'Blocking issues'}</h2>
