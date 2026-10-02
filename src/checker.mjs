@@ -117,7 +117,7 @@ async function fetchOnce(url, {
       method,
       redirect: 'follow',
       headers: {
-        'user-agent': 'ProdDoctor/2.2.0 (+https://github.com/lucaswenbo/ProdDoctor)',
+        'user-agent': 'ProdDoctor/2.2.1 (+https://github.com/lucaswenbo/ProdDoctor)',
         accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
         'cache-control': 'no-cache'
       },
@@ -419,7 +419,7 @@ export async function runChecks(rawUrl, options = {}) {
 
   return {
     tool: 'ProdDoctor',
-    version: '2.2.0',
+    version: '2.2.1',
     checkedAt: new Date().toISOString(),
     target: target.href,
     hostname: target.hostname,

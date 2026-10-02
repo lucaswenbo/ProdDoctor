@@ -1,5 +1,5 @@
-# 用户示例：默认锁定具体版本 v2.2.0。
-# 生产流水线建议把 v2.2.0 替换为该 tag 对应的完整 commit SHA。
+# 用户示例：默认锁定具体版本 v2.2.1。
+# 生产流水线建议把 v2.2.1 替换为该 tag 对应的完整 commit SHA。
 
 name: Verify real production
 
@@ -30,7 +30,7 @@ jobs:
             expect_json: '{"/healthy":true,"/dependencies/database":"ready"}'
 
     steps:
-      - uses: lucaswenbo/ProdDoctor@v2.2.0
+      - uses: lucaswenbo/ProdDoctor@v2.2.1
         with:
           url: ${{ matrix.url }}
           expect: ${{ matrix.expect }}
