@@ -13,6 +13,7 @@ on:
       - src/checker.mjs
       - src/report.mjs
       - src/html-report.mjs
+      - scripts/smoke-server.mjs
       - .github/workflows/browser-smoke.yml
       - .github/workflows/release-please.yml
   pull_request:
@@ -23,6 +24,7 @@ on:
       - src/checker.mjs
       - src/report.mjs
       - src/html-report.mjs
+      - scripts/smoke-server.mjs
       - .github/workflows/browser-smoke.yml
       - .github/workflows/release-please.yml
   workflow_dispatch:
@@ -37,14 +39,27 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '20'
+
+      - name: Start deterministic browser fixture
+        run: |
+          node scripts/smoke-server.mjs &
+          for attempt in {1..30}; do
+            if curl --noproxy '*' --silent --show-error --fail http://127.0.0.1:18765/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+
       - name: Run ProdDoctor with Chromium evidence
         id: doctor
         uses: ./
         with:
-          url: https://example.com
+          url: http://127.0.0.1:18765/
           status: 200
           browser: true
-          browser_expect: Example Domain
+          browser_expect: ProdDoctor browser ready
           browser_timeout: 30000
           browser_settle: 250
           browser_fail_console: false
@@ -72,10 +87,10 @@ jobs:
         id: second
         uses: ./
         with:
-          url: https://example.com
+          url: http://127.0.0.1:18765/
           language: zh-CN
           browser: true
-          browser_expect: Example Domain
+          browser_expect: ProdDoctor browser ready
           browser_trace: always
 
       - name: Verify evidence isolation

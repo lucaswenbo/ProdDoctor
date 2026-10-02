@@ -20,7 +20,7 @@ jobs:
           browser: true
 
           # 检查 JavaScript 执行后真正显示在页面上的文字
-          browser_expect: Example Domain
+          browser_expect: This domain is for use
 
           # desktop 或 mobile
           browser_profile: mobile

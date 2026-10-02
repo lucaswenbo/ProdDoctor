@@ -1,5 +1,6 @@
 import dns from 'node:dns/promises';
 import { performance } from 'node:perf_hooks';
+import { isDeepStrictEqual } from 'node:util';
 import { checkStaticAssets } from './assets.mjs';
 import { inspectTls } from './tls.mjs';
 import { runBrowserCheck, skippedBrowser } from './browser.mjs';
@@ -53,11 +54,49 @@ function headerGrade(headers) {
   };
 }
 
+function validateJsonExpectations(expectedJson) {
+  if (expectedJson === null) return;
+  if (!expectedJson || typeof expectedJson !== 'object' || Array.isArray(expectedJson) || !Object.keys(expectedJson).length) {
+    throw new Error('expect_json must be a non-empty JSON object mapping JSON Pointers to expected values');
+  }
+  for (const pointer of Object.keys(expectedJson)) {
+    if ((pointer !== '' && !pointer.startsWith('/')) || /~(?:[^01]|$)/.test(pointer)) {
+      throw new Error('expect_json keys must be JSON Pointers: use /healthy or /data/ready; escape ~ as ~0 and / as ~1');
+    }
+  }
+}
+
+function checkJson(body, expectedJson) {
+  if (expectedJson === null) return { checked: false, ok: true, assertions: [], error: null };
+  let document;
+  try {
+    document = JSON.parse(body);
+  } catch {
+    return { checked: true, ok: false, assertions: [], error: '响应正文不是有效 JSON' };
+  }
+  const assertions = Object.entries(expectedJson).map(([pointer, expected]) => {
+    let actual = document;
+    let found = true;
+    for (const segment of pointer === '' ? [] : pointer.slice(1).split('/')) {
+      const key = segment.replaceAll('~1', '/').replaceAll('~0', '~');
+      if (actual === null || typeof actual !== 'object' || !Object.hasOwn(actual, key) ||
+          (Array.isArray(actual) && !/^(0|[1-9]\d*)$/.test(key))) {
+        found = false;
+        break;
+      }
+      actual = actual[key];
+    }
+    return { pointer, expected, found, ...(found ? { actual } : {}), ok: found && isDeepStrictEqual(actual, expected) };
+  });
+  return { checked: true, ok: assertions.every(item => item.ok), assertions, error: null };
+}
+
 async function fetchOnce(url, {
   timeoutMs,
   maxBodyBytes = 0,
   expected = '',
   expectedStatus = null,
+  expectedJson = null,
   method = 'GET'
 } = {}) {
   const started = performance.now();
@@ -82,9 +121,11 @@ async function fetchOnce(url, {
       expected,
       expectedStatus
     });
+    const json = checkJson(body, expectedJson);
 
     return {
-      ok: verdict.ok,
+      ok: verdict.ok && json.ok,
+      json,
       status: response.status,
       statusText: response.statusText,
       finalUrl: response.url,
@@ -103,6 +144,7 @@ async function fetchOnce(url, {
   } catch (error) {
     return {
       ok: false,
+      json: { checked: expectedJson !== null, ok: expectedJson === null, assertions: [], error: expectedJson === null ? null : '未收到可验证的 JSON 响应' },
       status: null,
       finalUrl: null,
       elapsedMs: Math.round(performance.now() - started),
@@ -204,6 +246,8 @@ export async function runChecks(rawUrl, options = {}) {
   const retries = options.retries ?? 1;
   const expected = options.expected ?? '';
   const expectedStatus = options.expectedStatus ?? null;
+  const expectedJson = options.expectedJson ?? null;
+  validateJsonExpectations(expectedJson);
   const checkAssets = options.checkAssets ?? true;
   const maxAssets = options.maxAssets ?? 20;
   const tlsWarnDays = options.tlsWarnDays ?? 14;
@@ -241,7 +285,8 @@ export async function runChecks(rawUrl, options = {}) {
     maxBodyBytes,
     retries,
     expected,
-    expectedStatus
+    expectedStatus,
+    expectedJson
   });
 
   const finalUrl = page.finalUrl || target.href;
@@ -333,6 +378,11 @@ export async function runChecks(rawUrl, options = {}) {
       failures.push(`请求失败：${page.error}`);
     } else if (!page.expectedOk) {
       failures.push('页面未包含指定关键字');
+    } else if (!page.json.ok) {
+      if (page.json.error) failures.push(page.json.error);
+      for (const assertion of page.json.assertions.filter(item => !item.ok)) {
+        failures.push(`JSON 断言失败：${JSON.stringify(assertion.pointer)}`);
+      }
     } else {
       failures.push('生产页面检查失败');
     }
@@ -384,6 +434,7 @@ export async function runChecks(rawUrl, options = {}) {
       error: page.error || null
     },
     tls,
+    json: page.json,
     assets,
     browser,
     auxiliary: { robots, sitemap },

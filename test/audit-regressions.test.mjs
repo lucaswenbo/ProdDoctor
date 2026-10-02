@@ -6,8 +6,9 @@ import { spawnSync, spawn } from 'node:child_process';
 import { extractStaticAssets } from '../src/assets.mjs';
 import { runChecks } from '../src/checker.mjs';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
-const cli = new URL('../bin/proddoctor.mjs', import.meta.url).pathname;
+const cli = fileURLToPath(new URL('../bin/proddoctor.mjs', import.meta.url));
 test('CLI --version matches package.json without network', () => {
   const result = spawnSync(process.execPath, [cli, '--version'], { encoding: 'utf8' });
   assert.equal(result.status, 0);

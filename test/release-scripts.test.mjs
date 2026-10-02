@@ -4,8 +4,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync, execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(new URL('..', import.meta.url).pathname);
+const root = fileURLToPath(new URL('..', import.meta.url));
 const script = name => path.join(root, 'scripts', name);
 function temporary(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'proddoctor-test-'));

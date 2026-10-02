@@ -10,6 +10,7 @@ on:
       - action.yml
       - bin/**
       - src/**
+      - scripts/smoke-server.mjs
       - test/**
       - .github/workflows/action-smoke.yml
       - .github/workflows/release-please.yml
@@ -18,6 +19,7 @@ on:
       - action.yml
       - bin/**
       - src/**
+      - scripts/smoke-server.mjs
       - test/**
       - .github/workflows/action-smoke.yml
       - .github/workflows/release-please.yml
@@ -57,3 +59,38 @@ jobs:
         with:
           url: https://example.com
           check_assets: false
+
+      - name: Start local API fixture
+        shell: bash
+        run: |
+          node scripts/smoke-server.mjs &
+          for attempt in {1..30}; do
+            if curl --noproxy '*' --silent --show-error --fail http://127.0.0.1:18765/api/healthy >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+
+      - name: Critical API JSON assertions pass
+        uses: ./
+        with:
+          url: http://127.0.0.1:18765/api/healthy
+          status: 200
+          expect_json: '{"/healthy":true,"/dependencies/database":"ready"}'
+          retries: 0
+          max_body_bytes: 1024
+
+      - name: HTTP 200 with unhealthy JSON must fail
+        id: unhealthy
+        continue-on-error: true
+        uses: ./
+        with:
+          url: http://127.0.0.1:18765/api/unhealthy
+          language: zh-CN
+          status: 200
+          expect_json: '{"/healthy":true}'
+          retries: 0
+
+      - name: Verify the unhealthy response was blocked
+        env:
+          OUTCOME: ${{ steps.unhealthy.outcome }}
+        run: test "$OUTCOME" = failure

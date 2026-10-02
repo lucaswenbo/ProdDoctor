@@ -70,6 +70,7 @@ ProdDoctor 会在部署之后继续检查**用户真正访问到的那条生产�
 - DNS 是否能够解析
 - 真实生产 URL 与最终 HTTP 状态
 - 页面是否包含指定关键文本，避免“200 但页面错了”
+- 对明确指定的关键 API 执行可选 JSON 字段断言
 - 重定向后的最终 URL
 - Cloudflare Challenge / WAF 常见阻断特征
 - TLS 证书链与剩余有效期
@@ -281,7 +282,81 @@ jobs:
 
 ---
 
+# 关键页面与 API：检查“首页正常，但后端坏了”
+
+首页可能返回 200，但 `/api/health` 返回 500，或 JSON 中数据库状态已经异常。对关键端点逐个检查。`expect_json` 是 **JSON Pointer 到预期 JSON 值的映射**：
+
+```yaml
+- uses: lucaswenbo/ProdDoctor@<commit-sha>
+  with:
+    url: https://example.com/api/health
+    language: zh-CN
+    status: 200
+    expect_json: '{"/healthy":true,"/dependencies/database":"ready"}'
+    retries: 2
+    max_body_bytes: 5242880
+```
+
+把 `<commit-sha>` 替换为包含 `expect_json` 的发布版本完整 SHA。旧的 v2.1.2 不支持这个参数。
+
+- `/healthy` 读取顶层字段；`/dependencies/database` 读取嵌套字段；`/items/0/id` 读取数组元素。字段名中的 `/` 写成 `~1`，`~` 写成 `~0`。空 Pointer `""` 比较整个响应。
+- 严格比较类型：`true` 不等于 `"true"`，`1` 不等于 `"1"`。指定 Pointer 下的对象和数组精确比较，其他位置的额外字段不影响结果。
+- 无效 JSON、字段缺失或值不匹配都会失败；HTTP 和 Cloudflare 检查仍会阻断。复用已有超时和重试，HTTP 200 但字段值错误也会重试。
+- 空参数关闭断言。配置错误在发起请求前以退出码 2 结束；响应或断言失败返回退出码 1。
+- 报告显示目标和每个 Pointer 的预期值、实际值或字段缺失提示。JSON 报告保留指定字段值；人类可读详情对每个值最多显示 300 个字符。
+
+本地 CLI 用法（POSIX shell 和 PowerShell）：
+
+```sh
+node ./bin/proddoctor.mjs https://example.com/api/health --lang zh-CN --status 200 --expect-json '{"/healthy":true}' --json-file ./api-report.json --html-report ./api-report.html
+```
+
+同时检查首页、关键页面和 API，直接使用 Actions matrix。`fail-fast: false` 让所有目标都完成检查：
+
+```yaml
+name: Verify critical production endpoints
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    name: Verify ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: homepage
+            url: https://example.com
+            expect: My Website
+            expect_json: ''
+          - name: documentation
+            url: https://example.com/docs
+            expect: Documentation
+            expect_json: ''
+          - name: health-api
+            url: https://example.com/api/health
+            expect: ''
+            expect_json: '{"/healthy":true}'
+    steps:
+      - uses: lucaswenbo/ProdDoctor@<commit-sha>
+        with:
+          url: ${{ matrix.url }}
+          language: zh-CN
+          expect: ${{ matrix.expect }}
+          expect_json: ${{ matrix.expect_json }}
+          status: 200
+          max_body_bytes: 5242880
+```
+
+替换示例 URL 和断言，接入真实端点。放在部署之后执行，或使用 [examples/production-check.yml](examples/production-check.yml) 中的部署状态触发方式。每个端点单独生成 Job Summary。不启用 Chromium 也能通过 CLI 生成 HTML/JSON 文件；Action 自动上传 Artifact 仍需浏览器模式。
+
+这些只是公开 GET 检查，不会登录或执行交易。只对明确指定的字段断言，不会把 Chromium 中所有后台 API 错误自动当成故障。选择稳定、只读且能代表核心功能的端点。
+
 # 浏览器模式：检查“HTTP 正常，但页面实际坏了”
+
+请把示例 URL 和预期文本替换为真实生产页面。`example.com` 是文档示例域名，不应作为测试或监控服务依赖。
 
 HTTP 检查可以确认服务器响应、TLS 和静态资源，但有些问题只有真正执行 JavaScript 后才会出现，例如：
 
@@ -538,6 +613,7 @@ ProdDoctor 按 SemVer 管理对外行为，并尽量让已有 Workflow 在升级
 | `url` | 是 | 无 | 要检查的正式 URL |
 | `language` | 否 | `en` | 人类可读输出语言：`en` 或 `zh-CN` |
 | `expect` | 否 | 空 | 原始 HTML 必须包含的文本 |
+| `expect_json` | 否 | 空 | JSON Pointer/value 对象，指定响应字段必须精确匹配 |
 | `status` | 否 | 空 | 最终 HTTP 状态必须精确匹配 |
 | `retries` | 否 | GitHub Action：`2`；CLI：`1` | 失败后额外重试次数 |
 | `timeout` | 否 | `15000` | 单次 HTTP 请求超时，单位毫秒 |
@@ -648,7 +724,7 @@ npx playwright install chromium
 ```bash
 node ./bin/proddoctor.mjs https://example.com \
   --browser \
-  --browser-expect "Example Domain" \
+  --browser-expect "This domain is for use" \
   --browser-profile mobile \
   --browser-screenshot ./production.png \
   --browser-trace on-failure \
@@ -734,6 +810,7 @@ node ./bin/proddoctor.mjs https://example.com \
 9. 浏览器关键同源 document / script / stylesheet 请求失败或返回 4xx/5xx
 10. `browser_expect` 未出现在渲染后的可见文本中
 11. 开启 `browser_fail_console` 后出现 Console error
+12. 配置 `expect_json` 后响应不是有效 JSON、指定字段缺失或值不匹配
 
 以下项目目前属于提示，不会单独让检查失败：
 
@@ -928,7 +1005,7 @@ ProdDoctor 本身不会修改 Cloudflare 配置，只负责从公网检查结果
 - Lighthouse / Core Web Vitals
 - 登录态页面
 - 自定义请求 Header
-- 多 URL 批量配置
+- 内置多 URL 配置文件（目前可使用上面的 Actions matrix）
 
 这些能力可以在后续版本逐步增加。
 
@@ -1000,7 +1077,8 @@ npm test
 - [ ] 登录流程与可编排浏览器步骤
 - [ ] 自定义 viewport / 多设备矩阵
 - [ ] Playwright Video
-- [ ] 多 URL 批量检查
+- [x] 使用 Actions matrix 检查关键页面与 API JSON 断言
+- [ ] 内置多 URL 配置文件
 - [ ] Lighthouse / Core Web Vitals
 - [ ] PR 评论报告
 - [ ] npm 发布
@@ -1019,6 +1097,7 @@ ProdDoctor：
 - 只从运行环境向目标 URL 发起公开 HTTP 请求
 
 请不要把包含密码、访问 Token、私有签名或敏感查询参数的 URL 写入公开 GitHub Workflow。
+JSON 断言报告包含指定字段的预期值和实际值。避免选择秘密或个人信息，报告应与截图、Trace 一样按潜在敏感文件处理。
 
 截图、Trace、报告和日志也可能包含页面内容、URL 查询参数及网络响应，请按敏感数据管理。
 不要把来自外部 PR 的任意 URL 直接传给拥有内网访问权限或部署凭据的 runner。
