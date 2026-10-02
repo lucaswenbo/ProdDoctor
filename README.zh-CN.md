@@ -356,6 +356,8 @@ jobs:
 
 # 浏览器模式：检查“HTTP 正常，但页面实际坏了”
 
+请把示例 URL 和预期文本替换为真实生产页面。`example.com` 是文档示例域名，不应作为测试或监控服务依赖。
+
 HTTP 检查可以确认服务器响应、TLS 和静态资源，但有些问题只有真正执行 JavaScript 后才会出现，例如：
 
 ```text
@@ -722,7 +724,7 @@ npx playwright install chromium
 ```bash
 node ./bin/proddoctor.mjs https://example.com \
   --browser \
-  --browser-expect "Example Domain" \
+  --browser-expect "This domain is for use" \
   --browser-profile mobile \
   --browser-screenshot ./production.png \
   --browser-trace on-failure \

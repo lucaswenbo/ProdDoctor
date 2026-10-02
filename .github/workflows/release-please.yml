@@ -43,6 +43,15 @@ jobs:
           LATEST="$(git tag --merged HEAD --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)"
           if [ "v$VERSION" != "$LATEST" ]; then npm run release:policy; fi
 
+      - name: Start deterministic browser fixture
+        run: |
+          node scripts/smoke-server.mjs &
+          for attempt in {1..20}; do
+            if curl --silent --fail http://127.0.0.1:18765/ >/dev/null; then exit 0; fi
+            sleep 0.1
+          done
+          exit 1
+
       - name: Main lightweight smoke
         uses: ./
         with:
@@ -53,9 +62,9 @@ jobs:
         id: main-browser
         uses: ./
         with:
-          url: https://example.com
+          url: http://127.0.0.1:18765/
           browser: true
-          browser_expect: Example Domain
+          browser_expect: ProdDoctor browser ready
           browser_profile: mobile
           browser_trace: always
       - name: Check main evidence
@@ -174,9 +183,9 @@ jobs:
         id: pr-browser
         uses: ./
         with:
-          url: https://example.com
+          url: http://127.0.0.1:18765/
           browser: true
-          browser_expect: Example Domain
+          browser_expect: ProdDoctor browser ready
           browser_profile: mobile
           browser_trace: always
 

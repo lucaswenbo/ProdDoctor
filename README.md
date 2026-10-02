@@ -307,6 +307,8 @@ These are public GET checks, not authenticated interactions or transactions. Onl
 
 # Browser mode: catch pages that return 200 but are actually broken
 
+Replace the sample URL and expected text with your production page. `example.com` is a documentation domain, not a testing or monitoring service.
+
 Some failures only appear after JavaScript runs:
 
 ```text
@@ -649,7 +651,7 @@ Then:
 ```bash
 node ./bin/proddoctor.mjs https://example.com \
   --browser \
-  --browser-expect "Example Domain" \
+  --browser-expect "This domain is for use" \
   --browser-profile mobile \
   --browser-screenshot ./production.png \
   --browser-trace on-failure \
