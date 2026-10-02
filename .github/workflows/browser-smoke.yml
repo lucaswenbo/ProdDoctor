@@ -39,12 +39,16 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
 
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '20'
+
       - name: Start deterministic browser fixture
         run: |
           node scripts/smoke-server.mjs &
-          for attempt in {1..20}; do
-            if curl --silent --fail http://127.0.0.1:18765/ >/dev/null; then exit 0; fi
-            sleep 0.1
+          for attempt in {1..30}; do
+            if curl --noproxy '*' --silent --show-error --fail http://127.0.0.1:18765/ >/dev/null; then exit 0; fi
+            sleep 1
           done
           exit 1
 

@@ -64,9 +64,9 @@ jobs:
         shell: bash
         run: |
           node scripts/smoke-server.mjs &
-          for attempt in {1..20}; do
-            if curl --silent --fail http://127.0.0.1:18765/api/healthy >/dev/null; then exit 0; fi
-            sleep 0.1
+          for attempt in {1..30}; do
+            if curl --noproxy '*' --silent --show-error --fail http://127.0.0.1:18765/api/healthy >/dev/null; then exit 0; fi
+            sleep 1
           done
           exit 1
 
