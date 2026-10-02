@@ -105,6 +105,18 @@ Examples:
 `);
 }
 
+const valueFlags = new Set([
+  '--expect', '--expect-json', '--status', '--timeout', '--max-body-bytes', '--retries', '--max-assets', '--tls-warn-days',
+  '--browser-expect', '--browser-timeout', '--browser-settle', '--browser-profile',
+  '--browser-screenshot', '--browser-trace', '--browser-trace-path', '--json-file', '--html-report', '--lang'
+]);
+function helpRequested(args) {
+  for (let i = 0; i < args.length; i++) {
+    if (valueFlags.has(args[i])) i++;
+    else if (['--help', '-h'].includes(args[i])) return true;
+  }
+  return false;
+}
 const args = process.argv.slice(2);
 const fallbackLanguage = earlyLanguage(args);
 
@@ -112,7 +124,7 @@ if (args.length === 1 && ['--version', '-V'].includes(args[0])) {
   console.log(pkg.version);
   process.exit(0);
 }
-if (!args.length || args.includes('--help') || args.includes('-h')) {
+if (!args.length || helpRequested(args)) {
   usage(fallbackLanguage);
   process.exit(args.length ? 0 : 1);
 }
@@ -140,11 +152,6 @@ async function writeTextFile(filePath, content) {
 }
 
 try {
-  const valueFlags = new Set([
-    '--expect', '--expect-json', '--status', '--timeout', '--max-body-bytes', '--retries', '--max-assets', '--tls-warn-days',
-    '--browser-expect', '--browser-timeout', '--browser-settle', '--browser-profile',
-    '--browser-screenshot', '--browser-trace', '--browser-trace-path', '--json-file', '--html-report', '--lang'
-  ]);
   const booleanFlags = new Set(['--no-assets', '--browser', '--browser-fail-console', '--json']);
   if (url.startsWith('-')) throw new Error(fallbackLanguage === 'zh-CN' ? '请先提供 URL；--version 用于显示版本' : 'Provide a URL first; use --version to display the version');
 

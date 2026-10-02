@@ -253,6 +253,7 @@ Replace `<commit-sha>` with the full SHA of a release containing `expect_json`. 
 
 - `/healthy` selects a top-level field; `/dependencies/database` selects a nested field; `/items/0/id` selects an array element. Escape `/` in a field name as `~1`, and `~` as `~0`. The empty pointer `""` compares the entire response.
 - Types matter: `true` differs from `"true"`, and `1` differs from `"1"`. Objects and arrays match exactly at the selected pointer; unrelated fields elsewhere are allowed.
+- Numbers use JavaScript floating-point precision. Expected numbers and selected response values must be finite; integers must be within the safe range (-9007199254740991 to 9007199254740991). Encode large IDs or values requiring exact decimal precision as JSON strings. Unsupported expected numbers are configuration errors; unsupported selected response numbers fail the check.
 - Invalid JSON, missing fields, or mismatched values fail the check. HTTP and Cloudflare checks remain blocking. JSON failures use the existing timeout and retries, including HTTP 200 with the wrong value.
 - Empty input disables assertions. Invalid configuration exits with code 2 before requests; a failed response or assertion exits with code 1.
 - Reports show the target and each pointer's expected/actual values or a missing-field message. JSON reports preserve selected values; human-readable details show at most 300 characters per value.

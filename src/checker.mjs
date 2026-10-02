@@ -54,6 +54,11 @@ function headerGrade(headers) {
   };
 }
 
+function hasUnsupportedNumber(value) {
+  if (typeof value === 'number') return !Number.isFinite(value) || (Number.isInteger(value) && !Number.isSafeInteger(value));
+  return value !== null && typeof value === 'object' && Object.values(value).some(hasUnsupportedNumber);
+}
+
 function validateJsonExpectations(expectedJson) {
   if (expectedJson === null) return;
   if (!expectedJson || typeof expectedJson !== 'object' || Array.isArray(expectedJson) || !Object.keys(expectedJson).length) {
@@ -63,6 +68,9 @@ function validateJsonExpectations(expectedJson) {
     if ((pointer !== '' && !pointer.startsWith('/')) || /~(?:[^01]|$)/.test(pointer)) {
       throw new Error('expect_json keys must be JSON Pointers: use /healthy or /data/ready; escape ~ as ~0 and / as ~1');
     }
+  }
+  if (hasUnsupportedNumber(expectedJson)) {
+    throw new Error('expect_json numbers must be finite, and integers must be safe integers; encode large IDs as JSON strings');
   }
 }
 
@@ -88,6 +96,9 @@ function checkJson(body, expectedJson) {
     }
     return { pointer, expected, found, ...(found ? { actual } : {}), ok: found && isDeepStrictEqual(actual, expected) };
   });
+  if (assertions.some(item => item.found && hasUnsupportedNumber(item.actual))) {
+    return { checked: true, ok: false, assertions: [], error: 'JSON 断言选中的值包含非有限数字或不安全整数；大整数请使用 JSON 字符串' };
+  }
   return { checked: true, ok: assertions.every(item => item.ok), assertions, error: null };
 }
 

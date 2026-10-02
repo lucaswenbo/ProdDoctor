@@ -22,24 +22,49 @@ function decodeHtmlAttribute(value) {
     .replaceAll('&amp;', '&');
 }
 
+function activeTags(html) {
+  const tags = [];
+  const pattern = /<!--[\s\S]*?(?:-->|$)|<\/?([a-z][\w:-]*)\b(?:"[^"]*"|'[^']*'|[^'">])*>/gi;
+  const rawText = new Set(['script', 'style', 'textarea', 'title', 'xmp', 'iframe', 'noembed', 'noframes']);
+  let templateDepth = 0;
+  for (let match; (match = pattern.exec(html));) {
+    if (!match[1]) continue;
+    const name = match[1].toLowerCase();
+    const closing = match[0].startsWith('</');
+    if (name === 'template') {
+      templateDepth = Math.max(0, templateDepth + (closing ? -1 : 1));
+      continue;
+    }
+    if (!closing && !templateDepth) tags.push(match[0]);
+    if (!closing && name === 'plaintext') break;
+    if (!closing && rawText.has(name)) {
+      const end = new RegExp(`</${name}\\s*>`, 'gi');
+      end.lastIndex = pattern.lastIndex;
+      const found = end.exec(html);
+      pattern.lastIndex = found ? end.lastIndex : html.length;
+    }
+  }
+  return tags;
+}
+
 export function extractStaticAssets(html, pageUrl, maxAssets = 20) {
   if (maxAssets <= 0) return [];
 
   const page = new URL(pageUrl);
-  const markup = String(html || '').replace(/<!--[\s\S]*?-->/g, '');
-  const baseTag = markup.match(/<base\b[^>]*>/i)?.[0];
+  const markup = activeTags(String(html || ''));
+  const baseTag = markup.find(tag => /^<base(?=[\s/>])/i.test(tag));
   let base = page;
   try { if (baseTag) base = new URL(decodeHtmlAttribute(getAttribute(baseTag, 'href') || ''), page); } catch {}
   const found = [];
 
-  for (const match of markup.matchAll(/<script\b[^>]*>/gi)) {
-    const src = getAttribute(match[0], 'src');
+  for (const tag of markup.filter(tag => /^<script(?=[\s/>])/i.test(tag))) {
+    const src = getAttribute(tag, 'src');
     if (src) found.push({ kind: 'script', rawUrl: decodeHtmlAttribute(src) });
   }
 
-  for (const match of markup.matchAll(/<link\b[^>]*>/gi)) {
-    const rel = getAttribute(match[0], 'rel') || '';
-    const href = getAttribute(match[0], 'href');
+  for (const tag of markup.filter(tag => /^<link(?=[\s/>])/i.test(tag))) {
+    const rel = getAttribute(tag, 'rel') || '';
+    const href = getAttribute(tag, 'href');
 
     if (href && rel.toLowerCase().split(/\s+/).includes('stylesheet')) {
       found.push({ kind: 'style', rawUrl: decodeHtmlAttribute(href) });
