@@ -2,6 +2,13 @@
 
 所有值得记录的变更都集中在这里。格式遵循 Keep a Changelog 的组织方式，版本号遵循 SemVer。
 
+## [2.2.0](https://github.com/lucaswenbo/ProdDoctor/compare/v2.1.2...v2.2.0) (2026-10-02)
+
+
+### Features
+
+* add critical API JSON assertions ([71e5863](https://github.com/lucaswenbo/ProdDoctor/commit/71e5863d85af9d6ba10f364cb3cbaa20443637af))
+
 ## [2.1.2](https://github.com/lucaswenbo/ProdDoctor/compare/v2.1.1...v2.1.2) (2026-09-27)
 
 
